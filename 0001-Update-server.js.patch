@@ -1,0 +1,60 @@
+From 5748f5aeb7b6864ea4c393820744ec2bdf16b248 Mon Sep 17 00:00:00 2001
+From: Saumitra Kapoor <68214324+kapoorsaumitra@users.noreply.github.com>
+Date: Mon, 1 May 2023 23:50:40 +0530
+Subject: [PATCH] Update server.js
+
+---
+ server.js | 32 +++++++++++++++++++++++++++++---
+ 1 file changed, 29 insertions(+), 3 deletions(-)
+
+diff --git a/server.js b/server.js
+index 7ba16d7..0f0cc93 100644
+--- a/server.js
++++ b/server.js
+@@ -122,8 +122,34 @@ app.put('/api/v1/clients/:id', (req, res) => {
+   }
+ 
+   let { status, priority } = req.body;
+-  let clients = db.prepare('select * from clients').all();
+-  const client = clients.find(client => client.id === id);
++  let client = db.prepare('SELECT * from clients WHERE id == ${id}').get();
++  if (status != client.status) {
++    db.prepare('UPDATE clients SET status = "${status}" WHERE id = ${id}').run();
++    db.prepare(`UPDATE clients SET priority = priority - 1 WHERE status = "${client.status}" AND priority > ${client.priority}`).run();
++    
++    if(priority){
++      db.prepare(`UPDATE clients SET priority = priority + 1 WHERE status = "${client.status}" AND priority >= ${client.priority}`).run();
++      db.prepare(`UPDATE clients SET priority = ${priority} WHERE id = ${id}`).run();
++    }
++    else{
++      db.prepare(`UPDATE clients SET status = "${status}", priority = (SELECT COUNT(*) FROM clients WHERE status = "${status}") + 1 WHERE id = ${id}`).run();
++    }
++  }
++  else {
++
++    if(priority && priority < client.priority) {
++      db.prepare(`UPDATE clients SET priority = priority + 1 WHERE status = "${client.status}" AND priority >= ${priority} AND priority < ${client.priority}`).run();
++      db.prepare(`UPDATE clients SET priority = ${priority} WHERE id = ${id}`).run();
++    }
++
++    else if(priority && priority > client.priority) {
++      db.prepare(`UPDATE clients SET priority = priority - 1 WHERE status = "${client.status}" AND priority > ${client.priority} AND priority <= ${priority}`).run();
++      db.prepare(`UPDATE clients SET priority = ${priority} WHERE id = ${id}`).run();
++    }
++  }
++
++  const newClients = db.prepare('SELECT * FROM clients WHERE status = "${status}"').all();
++  return res.status(200).send(newClients);
+ 
+   /* ---------- Update code below ----------*/
+ 
+@@ -133,4 +159,4 @@ app.put('/api/v1/clients/:id', (req, res) => {
+ });
+ 
+ app.listen(3001);
+-console.log('app running on port ', 3001);
++console.log('app running on port ', 3001);
+\ No newline at end of file
+-- 
+2.34.1
+
