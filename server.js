@@ -122,8 +122,34 @@ app.put('/api/v1/clients/:id', (req, res) => {
   }
 
   let { status, priority } = req.body;
-  let clients = db.prepare('select * from clients').all();
-  const client = clients.find(client => client.id === id);
+  let client = db.prepare('SELECT * from clients WHERE id == ${id}').get();
+  if (status != client.status) {
+    db.prepare('UPDATE clients SET status = "${status}" WHERE id = ${id}').run();
+    db.prepare(`UPDATE clients SET priority = priority - 1 WHERE status = "${client.status}" AND priority > ${client.priority}`).run();
+    
+    if(priority){
+      db.prepare(`UPDATE clients SET priority = priority + 1 WHERE status = "${client.status}" AND priority >= ${client.priority}`).run();
+      db.prepare(`UPDATE clients SET priority = ${priority} WHERE id = ${id}`).run();
+    }
+    else{
+      db.prepare(`UPDATE clients SET status = "${status}", priority = (SELECT COUNT(*) FROM clients WHERE status = "${status}") + 1 WHERE id = ${id}`).run();
+    }
+  }
+  else {
+
+    if(priority && priority < client.priority) {
+      db.prepare(`UPDATE clients SET priority = priority + 1 WHERE status = "${client.status}" AND priority >= ${priority} AND priority < ${client.priority}`).run();
+      db.prepare(`UPDATE clients SET priority = ${priority} WHERE id = ${id}`).run();
+    }
+
+    else if(priority && priority > client.priority) {
+      db.prepare(`UPDATE clients SET priority = priority - 1 WHERE status = "${client.status}" AND priority > ${client.priority} AND priority <= ${priority}`).run();
+      db.prepare(`UPDATE clients SET priority = ${priority} WHERE id = ${id}`).run();
+    }
+  }
+
+  const newClients = db.prepare('SELECT * FROM clients WHERE status = "${status}"').all();
+  return res.status(200).send(newClients);
 
   /* ---------- Update code below ----------*/
 
